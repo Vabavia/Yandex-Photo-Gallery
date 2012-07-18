@@ -55,7 +55,7 @@ $(function() {
 			}
 
 			// Отображаем фотографии
-			Galleria.loadTheme('/galleria-themes/folio/galleria.folio.min.js');
+			Galleria.loadTheme('/galleria/folio/galleria.folio.min.js');
 			galleria.galleria().show();
 			$("#loading-info").hide();
 		});
