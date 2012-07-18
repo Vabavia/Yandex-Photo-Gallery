@@ -1,80 +1,70 @@
-var previewSize = 'M';
-var albumId = 171611;
-var username = "aldekein";
-var galleria;
+
+
+function Fotki() {}
+
+
 
 /**
- * Init
+ * Получаем данные альбома
+ *
+ * @this Fotki
+ * @param {string} username Логин пользователя на сервере Яндекс
+ * @param {int} albumId Идентификатор альбома
+ * @param {function} callback Коллбэк функция, в которую будет передан ответ сервера
  */
-$(function() {
-	galleria = $('#galleria');
-	$.get('http://api-fotki.yandex.ru/api/users/'+username+'/album/'+albumId+'/?format=json&callback=parseAlbum', function () { }, 'script')
-});
-
-var parseAlbum = function(albumData) {
-	if (typeof albumData !== 'object') {
-		$('#loading-info').html('Ошибка при загрузке информации об альбоме!');
-		return false;
-	}
-
-	$('#loading-info-more').html(albumData.imageCount + ' фотографий');
-
-	// console.log('http://api-fotki.yandex.ru/api/users/'+username+'/album/'+albumId+'/photos/rcreated/?format=json&callback=parsePhotos');
-	$.get('http://api-fotki.yandex.ru/api/users/'+username+'/album/'+albumId+'/photos/?format=json&callback=parsePhotos', function () { }, 'script')
-	// console.log(albumData);
+Fotki.prototype.getAlbum = function(username, albumId, callback) {
+	$.ajax({
+		url: 'http://api-fotki.yandex.ru/api/users/'+username+'/album/'+albumId+'/?format=json&callback=?',
+		dataType: 'jsonp',
+		success: callback,
+		error: function(){
+			callback(false);
+		}
+	});
 };
 
-var totalCount = 0;
-var parsePhotos = function(photosData) {
-	if (typeof photosData !== 'object') {
-		$('#loading-info').html('Ошибка при загрузке информации о фотографиях!');
-		return false;
-	}
+/**
+ * Получаем фотографии из альбома
+ *
+ * @this Fotki
+ * @param {string} username Логин пользователя на сервере Яндекс
+ * @param {int} albumId Идентификатор альбома
+ * @param {function} callback Коллбэк функция, в которую будет передан список фотографий
+ */
+Fotki.prototype.getPhotos = function(username, albumId, callback) {
+	var result = {
+		entries: []
+	};
 
-	var imgData, imgDataOriginal, imgDataBig;
-	// console.log(photosData);
-	// console.log(photosData.entries.length);
+	/**
+	 * Загрузка следующей страницы фотографий (если их несколько)
+	 * @param {string} url
+	 * @param {callback} callback Функция, в которую будет передан список фотографий
+	 */
+	var loadPage = function(url) {
+		$.ajax({
+			url: url,
+			dataType: 'jsonp',
+			error: function(){
+				callback(false);
+			},
+			success: function( data ){
+				// Добавляем резульаты к общему массиву
+				for ( var k in data.entries ) {
+					result.entries.push( data.entries[k] );
+				}
 
-	for (var i in photosData.entries) {
-	imgData = photosData.entries[i].img[previewSize];
+				// Проверяем есть ли другие страницы
+				if ( data.links.hasOwnProperty('next') ) {
+					loadPage(data.links.next); // Если есть другие страницы - грузим их
+				}
+				else {
+					callback( result ); // Если нет - возвращаем ответ в коллбек
+				}
+			}
+		});
+	};
 
-	try {
-		if (typeof photosData.entries[i].img.XXXL != 'undefined') {
-			// some really small photos does not have these sizes at all
-			imgDataBig = photosData.entries[i].img.XXXL;
-			imgDataOriginal = photosData.entries[i].img.XXL;
-		}
-		else {
-			imgDataBig = imgData;
-			imgDataOriginal = imgData;
-		}
-
-		totalCount++;
-		galleria.prepend('<a href="'+imgDataBig.href+'"><img ' +
-							'src="'+imgData.href+'" ' +
-							'width="'+imgData.width+'" ' +
-							'height="'+imgData.height+'" ' +
-							'alt="'+photosData.entries[i].title+'" ' +
-					'></a>');
-	}
-	catch(e) { }
-	}
-
-	// multipaging
-	if (photosData.links.next) {
-		$.get(photosData.links.next+'?format=json&callback=parsePhotos', function () { }, 'script');
-	}
-	else {
-		//                 console.log('totalCount', totalCount);
-		document.title = document.title + ' — ' + photosData.title;
-		$('#loading-info').hide();
-		$('#back-to-albums').css('display', 'block');
-
-		// Galleria.loadTheme('/galleria/themes/classic/galleria.classic.min.js');
-		// Galleria.loadTheme('/galleria/themes/twelve/galleria.twelve.min.js');
-		// read http://galleria.io/docs/getting_started/quick_start/ for customizing for your best experience
-
-		Galleria.loadTheme('/galleria-themes/folio/galleria.folio.min.js');
-		galleria.galleria().show();
-	}
+	// Инициализируем загрузку первой страницы
+	loadPage('http://api-fotki.yandex.ru/api/users/'+username+'/album/'+albumId+'/photos/?format=json&callback=?');
 };
